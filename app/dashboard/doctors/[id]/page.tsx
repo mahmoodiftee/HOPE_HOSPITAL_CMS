@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import { TimeSlotsTable } from '@/components/time-slots/time-slots-table';
-import { TimeSlotEditForm } from '@/components/time-slots/time-slot-edit-form';
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft } from "lucide-react";
+import { TimeSlotsTable } from "@/components/time-slots/time-slots-table";
+import { TimeSlotEditForm } from "@/components/time-slots/time-slot-edit-form";
+import { showToast } from "@/lib/toast";
 
 interface TimeSlot {
   $id: string;
@@ -36,19 +37,25 @@ export default function DoctorTimeSlotsPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Fetch doctor details
   useEffect(() => {
     if (!doctorId) return;
 
     const fetchDoctor = async () => {
       try {
         const response = await fetch(`/api/doctors/${doctorId}`);
-        if (response.ok) {
-          const data = await response.json();
-          setDoctor(data);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch doctor");
         }
+
+        const data = await response.json();
+        setDoctor(data);
       } catch (error) {
-        console.error('Error fetching doctor:', error);
+        console.error("Error fetching doctor:", error);
+        showToast.error(
+          "Failed to Load Doctor",
+          "Unable to fetch doctor information"
+        );
       } finally {
         setLoading(false);
       }
@@ -65,16 +72,29 @@ export default function DoctorTimeSlotsPage() {
   const handleEditSubmit = async (data: any, id: string) => {
     try {
       const response = await fetch(`/api/time-slots/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
-      if (response.ok) {
-        setRefreshTrigger((prev) => prev + 1);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update time slot");
       }
+
+      showToast.success(
+        "Time Slot Updated",
+        "The time slot has been updated successfully"
+      );
+
+      setRefreshTrigger((prev) => prev + 1);
+      setEditSlotOpen(false);
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
+      showToast.error(
+        "Update Failed",
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
     }
   };
 
@@ -90,6 +110,13 @@ export default function DoctorTimeSlotsPage() {
     return (
       <div className="p-6">
         <p>Doctor not found</p>
+        <Button
+          variant="outline"
+          onClick={() => router.push("/doctors")}
+          className="mt-4"
+        >
+          Back to Doctors
+        </Button>
       </div>
     );
   }
@@ -97,11 +124,7 @@ export default function DoctorTimeSlotsPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => router.back()}
-        >
+        <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>

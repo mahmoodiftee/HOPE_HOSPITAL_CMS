@@ -1,62 +1,54 @@
-import { databases, DATABASE_ID, DOCTORS_COLLECTION_ID, TIME_SLOTS_COLLECTION_ID, USERS_COLLECTION_ID, ID } from './appwrite';
-import { Query } from 'appwrite';
+import {
+  databases,
+  DATABASE_ID,
+  DOCTORS_COLLECTION_ID,
+  TIME_SLOTS_COLLECTION_ID,
+  USERS_COLLECTION_ID,
+  ID,
+} from "./appwrite";
+import { Query } from "appwrite";
+import type { Models } from "appwrite";
 
-// ============ DOCTORS QUERIES ============
+interface TimeSlot extends Models.Document {
+  doctorId: string;
+  availableDays?: string[];
+  availableTimes?: string[];
+}
 
-interface Doctor {
-  $id: string;
+interface Doctor extends Models.Document {
   name: string;
   specialty: string;
   hourlyRate: number;
   image?: string;
   experience?: string;
-  specialties?: string;
-  createdAt: string;
-  updatedAt: string;
+  specialties?: string[];
 }
 
-interface TimeSlot {
-  $id: string;
-  doctorId: string;
-  time: string;
-  available: boolean;
-  status: string;
-  label: string;
-  date: string;
-}
-
-interface User {
-  $id: string;
+interface User extends Models.Document {
   email: string;
   name: string;
   role?: string;
   phone?: string;
-  createdAt: string;
 }
 
-// Create Doctor
-export async function createDoctor(data: Omit<Doctor, '$id' | 'createdAt' | 'updatedAt'>) {
+export async function createDoctor(data: Omit<Doctor, keyof Models.Document>) {
   try {
-    const now = new Date().toISOString();
     const response = await databases.createDocument(
       DATABASE_ID,
       DOCTORS_COLLECTION_ID,
       ID.unique(),
       {
         ...data,
-        specialties: typeof data.specialties === 'string' ? data.specialties : JSON.stringify(data.specialties || []),
-        createdAt: now,
-        updatedAt: now,
+        specialties: data.specialties || [],
       }
     );
-    return response as Doctor;
+    return response;
   } catch (error) {
-    console.error('Error creating doctor:', error);
+    console.error("Error creating doctor:", error);
     throw error;
   }
 }
 
-// Get Doctors with pagination and filtering
 export async function getDoctors(
   limit = 10,
   offset = 0,
@@ -67,11 +59,11 @@ export async function getDoctors(
     const queries = [];
 
     if (specialty) {
-      queries.push(Query.equal('specialty', specialty));
+      queries.push(Query.equal("specialty", specialty));
     }
 
     if (search) {
-      queries.push(Query.search('name', search));
+      queries.push(Query.search("name", search));
     }
 
     const response = await databases.listDocuments(
@@ -81,18 +73,20 @@ export async function getDoctors(
         ...queries,
         Query.limit(limit),
         Query.offset(offset),
-        Query.orderDesc('createdAt'),
+        Query.orderDesc("$createdAt"),
       ]
     );
 
-    return response as unknown as { documents: Doctor[]; total: number };
+    return {
+      documents: response.documents,
+      total: response.total,
+    };
   } catch (error) {
-    console.error('Error fetching doctors:', error);
+    console.error("Error fetching doctors:", error);
     throw error;
   }
 }
 
-// Get Single Doctor
 export async function getDoctor(doctorId: string) {
   try {
     const response = await databases.getDocument(
@@ -100,15 +94,17 @@ export async function getDoctor(doctorId: string) {
       DOCTORS_COLLECTION_ID,
       doctorId
     );
-    return response as Doctor;
+    return response;
   } catch (error) {
-    console.error('Error fetching doctor:', error);
+    console.error("Error fetching doctor:", error);
     throw error;
   }
 }
 
-// Update Doctor
-export async function updateDoctor(doctorId: string, data: Partial<Omit<Doctor, '$id' | 'createdAt'>>) {
+export async function updateDoctor(
+  doctorId: string,
+  data: Partial<Omit<Doctor, keyof Models.Document>>
+) {
   try {
     const response = await databases.updateDocument(
       DATABASE_ID,
@@ -116,18 +112,16 @@ export async function updateDoctor(doctorId: string, data: Partial<Omit<Doctor, 
       doctorId,
       {
         ...data,
-        specialties: typeof data.specialties === 'string' ? data.specialties : JSON.stringify(data.specialties || []),
-        updatedAt: new Date().toISOString(),
+        ...(data.specialties && { specialties: data.specialties }),
       }
     );
-    return response as Doctor;
+    return response;
   } catch (error) {
-    console.error('Error updating doctor:', error);
+    console.error("Error updating doctor:", error);
     throw error;
   }
 }
 
-// Delete Doctor
 export async function deleteDoctor(doctorId: string) {
   try {
     await databases.deleteDocument(
@@ -136,12 +130,11 @@ export async function deleteDoctor(doctorId: string) {
       doctorId
     );
   } catch (error) {
-    console.error('Error deleting doctor:', error);
+    console.error("Error deleting doctor:", error);
     throw error;
   }
 }
 
-// Get all specialties (unique values)
 export async function getSpecialties() {
   try {
     const response = await databases.listDocuments(
@@ -151,7 +144,7 @@ export async function getSpecialties() {
     );
 
     const specialties = new Set<string>();
-    (response.documents as Doctor[]).forEach((doc) => {
+    response.documents.forEach((doc) => {
       if (doc.specialty) {
         specialties.add(doc.specialty);
       }
@@ -159,143 +152,164 @@ export async function getSpecialties() {
 
     return Array.from(specialties).sort();
   } catch (error) {
-    console.error('Error fetching specialties:', error);
+    console.error("Error fetching specialties:", error);
     throw error;
   }
 }
 
 // ============ TIME SLOTS QUERIES ============
 
-// Create Time Slot
-export async function createTimeSlot(data: Omit<TimeSlot, '$id'>) {
+export async function createTimeSlot(
+  data: Omit<TimeSlot, keyof Models.Document>
+) {
   try {
     const response = await databases.createDocument(
       DATABASE_ID,
       TIME_SLOTS_COLLECTION_ID,
       ID.unique(),
-      data
+      {
+        ...data,
+        availableDays: data.availableDays || [],
+        availableTimes: data.availableTimes || [],
+      }
     );
-    return response as TimeSlot;
+    return response;
   } catch (error) {
-    console.error('Error creating time slot:', error);
+    console.error("Error creating time slot:", error);
     throw error;
   }
 }
 
-// Create multiple time slots (for batch insert)
-export async function createMultipleTimeSlots(slots: Omit<TimeSlot, '$id'>[]) {
+export async function getTimeSlots(limit = 10, offset = 0, doctorId?: string) {
   try {
-    const responses = await Promise.all(
-      slots.map((slot) =>
-        databases.createDocument(
-          DATABASE_ID,
-          TIME_SLOTS_COLLECTION_ID,
-          ID.unique(),
-          slot
-        )
-      )
-    );
-    return responses as TimeSlot[];
-  } catch (error) {
-    console.error('Error creating time slots:', error);
-    throw error;
-  }
-}
+    const queries = [];
 
-// Get Time Slots for a Doctor
-export async function getTimeSlotsByDoctor(doctorId: string, date?: string) {
-  try {
-    const queries = [Query.equal('doctorId', doctorId)];
-
-    if (date) {
-      queries.push(Query.equal('date', date));
+    if (doctorId) {
+      queries.push(Query.equal("doctorId", doctorId));
     }
 
     const response = await databases.listDocuments(
       DATABASE_ID,
       TIME_SLOTS_COLLECTION_ID,
-      [...queries, Query.orderAsc('time')]
+      [
+        ...queries,
+        Query.limit(limit),
+        Query.offset(offset),
+        Query.orderDesc("$createdAt"),
+      ]
     );
 
-    return response as unknown as { documents: TimeSlot[]; total: number };
+    return {
+      documents: response.documents,
+      total: response.total,
+    };
   } catch (error) {
-    console.error('Error fetching time slots:', error);
+    console.error("Error fetching time slots:", error);
     throw error;
   }
 }
 
-// Update Time Slot
-export async function updateTimeSlot(slotId: string, data: Partial<TimeSlot>) {
+export async function getTimeSlot(timeSlotId: string) {
+  try {
+    const response = await databases.getDocument(
+      DATABASE_ID,
+      TIME_SLOTS_COLLECTION_ID,
+      timeSlotId
+    );
+    return response;
+  } catch (error) {
+    console.error("Error fetching time slot:", error);
+    throw error;
+  }
+}
+
+export async function updateTimeSlot(
+  timeSlotId: string,
+  data: Partial<Omit<TimeSlot, keyof Models.Document>>
+) {
   try {
     const response = await databases.updateDocument(
       DATABASE_ID,
       TIME_SLOTS_COLLECTION_ID,
-      slotId,
-      data
+      timeSlotId,
+      {
+        ...data,
+        ...(data.availableDays && { availableDays: data.availableDays }),
+        ...(data.availableTimes && { availableTimes: data.availableTimes }),
+      }
     );
-    return response as TimeSlot;
+    return response;
   } catch (error) {
-    console.error('Error updating time slot:', error);
+    console.error("Error updating time slot:", error);
     throw error;
   }
 }
 
-// Delete Time Slot
-export async function deleteTimeSlot(slotId: string) {
+export async function deleteTimeSlot(timeSlotId: string) {
   try {
     await databases.deleteDocument(
       DATABASE_ID,
       TIME_SLOTS_COLLECTION_ID,
-      slotId
+      timeSlotId
     );
   } catch (error) {
-    console.error('Error deleting time slot:', error);
+    console.error("Error deleting time slot:", error);
     throw error;
   }
 }
 
-// Delete multiple time slots by doctor
-export async function deleteTimeSlotsByDoctor(doctorId: string) {
+export async function getDoctorsWithoutTimeSlots() {
   try {
-    const slots = await getTimeSlotsByDoctor(doctorId);
-    await Promise.all(
-      slots.documents.map((slot) => deleteTimeSlot(slot.$id))
+    const doctorsResponse = await databases.listDocuments(
+      DATABASE_ID,
+      DOCTORS_COLLECTION_ID,
+      [Query.limit(1000)]
     );
+
+    const timeSlotsResponse = await databases.listDocuments(
+      DATABASE_ID,
+      TIME_SLOTS_COLLECTION_ID,
+      [Query.limit(1000)]
+    );
+
+    const doctorIdsWithSlots = new Set(
+      timeSlotsResponse.documents.map((slot) => slot.doctorId)
+    );
+
+    const doctorsWithoutSlots = doctorsResponse.documents.filter(
+      (doctor) => !doctorIdsWithSlots.has(doctor.$id)
+    );
+
+    return doctorsWithoutSlots;
   } catch (error) {
-    console.error('Error deleting time slots by doctor:', error);
+    console.error("Error fetching doctors without time slots:", error);
     throw error;
   }
 }
 
 // ============ USERS QUERIES ============
 
-// Create User
-export async function createUser(data: Omit<User, '$id' | 'createdAt'>) {
+export async function createUser(data: Omit<User, keyof Models.Document>) {
   try {
     const response = await databases.createDocument(
       DATABASE_ID,
       USERS_COLLECTION_ID,
       ID.unique(),
-      {
-        ...data,
-        createdAt: new Date().toISOString(),
-      }
+      data
     );
     return response as User;
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error("Error creating user:", error);
     throw error;
   }
 }
 
-// Get Users with pagination
 export async function getUsers(limit = 10, offset = 0, search?: string) {
   try {
     const queries = [];
 
     if (search) {
-      queries.push(Query.search('name', search));
-      queries.push(Query.search('email', search));
+      queries.push(Query.search("name", search));
     }
 
     const response = await databases.listDocuments(
@@ -305,18 +319,20 @@ export async function getUsers(limit = 10, offset = 0, search?: string) {
         ...queries,
         Query.limit(limit),
         Query.offset(offset),
-        Query.orderDesc('createdAt'),
+        Query.orderDesc("$createdAt"),
       ]
     );
 
-    return response as unknown as { documents: User[]; total: number };
+    return {
+      documents: response.documents,
+      total: response.total,
+    };
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error("Error fetching users:", error);
     throw error;
   }
 }
 
-// Get Single User
 export async function getUser(userId: string) {
   try {
     const response = await databases.getDocument(
@@ -324,15 +340,17 @@ export async function getUser(userId: string) {
       USERS_COLLECTION_ID,
       userId
     );
-    return response as User;
+    return response;
   } catch (error) {
-    console.error('Error fetching user:', error);
+    console.error("Error fetching user:", error);
     throw error;
   }
 }
 
-// Update User
-export async function updateUser(userId: string, data: Partial<Omit<User, '$id' | 'createdAt'>>) {
+export async function updateUser(
+  userId: string,
+  data: Partial<Omit<User, keyof Models.Document>>
+) {
   try {
     const response = await databases.updateDocument(
       DATABASE_ID,
@@ -342,21 +360,18 @@ export async function updateUser(userId: string, data: Partial<Omit<User, '$id' 
     );
     return response as User;
   } catch (error) {
-    console.error('Error updating user:', error);
+    console.error("Error updating user:", error);
     throw error;
   }
 }
 
-// Delete User
 export async function deleteUser(userId: string) {
   try {
-    await databases.deleteDocument(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      userId
-    );
+    await databases.deleteDocument(DATABASE_ID, USERS_COLLECTION_ID, userId);
   } catch (error) {
-    console.error('Error deleting user:', error);
+    console.error("Error deleting user:", error);
     throw error;
   }
 }
+
+export type { Doctor, TimeSlot, User };

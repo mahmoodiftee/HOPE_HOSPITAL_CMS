@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Form,
   FormControl,
@@ -13,7 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
+} from "@/components/ui/form";
 import {
   Dialog,
   DialogContent,
@@ -21,20 +21,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 
 const userSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Invalid email'),
-  role: z.string().optional(),
-  phone: z.string().optional(),
+  name: z.string().min(1, "Name is required"),
+  age: z.coerce.number().int("Age must be a whole number").min(1, "Age must be at least 1").max(150, "Age must be realistic"),
+  phone: z.string()
+    .regex(/^01[1-9]\d{8}$/, "Phone must be 11 digits starting with 01-019 (e.g., 01700000000)")
+    .length(11, "Phone must be exactly 11 digits"),
 });
 
 type UserFormData = z.infer<typeof userSchema>;
 
 interface UserFormProps {
   open: boolean;
-  user?: UserFormData & { $id: string };
+  user?: { $id: string; name: string; age?: number; phone?: string };
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: UserFormData, id?: string) => Promise<void>;
   isLoading?: boolean;
@@ -52,28 +53,24 @@ export function UserForm({
   const form = useForm<UserFormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      name: '',
-      email: '',
-      role: '',
-      phone: '',
+      name: "",
+      age: undefined,
+      phone: "",
     },
   });
 
-  // Update form when user changes
   useEffect(() => {
     if (user) {
       form.reset({
         name: user.name,
-        email: user.email,
-        role: user.role || '',
-        phone: user.phone || '',
+        age: user.age || undefined,
+        phone: user.phone || "",
       });
     } else {
       form.reset({
-        name: '',
-        email: '',
-        role: '',
-        phone: '',
+        name: "",
+        age: undefined,
+        phone: "",
       });
     }
   }, [user, form]);
@@ -82,22 +79,27 @@ export function UserForm({
     try {
       setSubmitting(true);
       await onSubmit(data, user?.$id);
-      onOpenChange(false);
       form.reset();
     } catch (error) {
-      console.error('Form submission error:', error);
+      console.error("Form submission error:", error);
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen && !submitting) {
+      onOpenChange(newOpen);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{user ? 'Edit User' : 'Add User'}</DialogTitle>
+          <DialogTitle>{user ? "Edit User" : "Add User"}</DialogTitle>
           <DialogDescription>
-            {user ? 'Update user information' : 'Add a new user to the system'}
+            {user ? "Update user information" : "Add a new user to the system"}
           </DialogDescription>
         </DialogHeader>
 
@@ -122,26 +124,18 @@ export function UserForm({
 
             <FormField
               control={form.control}
-              name="email"
+              name="age"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Age</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="john@example.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Admin, User" {...field} />
+                    <Input 
+                      type="number"
+                      placeholder="e.g., 25" 
+                      {...field}
+                      onChange={(e) => field.onChange(e.target.value)}
+                      value={field.value ?? ""}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -155,7 +149,12 @@ export function UserForm({
                 <FormItem>
                   <FormLabel>Phone</FormLabel>
                   <FormControl>
-                    <Input placeholder="123-456-7890" {...field} />
+                    <Input 
+                      type="tel"
+                      placeholder="01700000000" 
+                      maxLength={11}
+                      {...field} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -166,12 +165,13 @@ export function UserForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
+                disabled={submitting}
               >
                 Cancel
               </Button>
               <Button type="submit" disabled={submitting || isLoading}>
-                {submitting ? 'Saving...' : 'Save'}
+                {submitting ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
           </form>

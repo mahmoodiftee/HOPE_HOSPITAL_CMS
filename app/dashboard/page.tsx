@@ -56,13 +56,6 @@ export default function DashboardPage() {
       href: '/dashboard/users',
       color: 'bg-green-50 text-green-700',
     },
-    {
-      title: 'Time Slots',
-      value: stats.totalTimeSlots,
-      icon: Clock,
-      href: '/dashboard/doctors',
-      color: 'bg-purple-50 text-purple-700',
-    },
   ];
 
   return (
@@ -71,7 +64,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Welcome back!</h1>
         <p className="text-muted-foreground mt-2">
-          Here's an overview of your healthcare management system
+          Here's an overview of your Hospital management system
         </p>
       </div>
 

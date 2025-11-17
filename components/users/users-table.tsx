@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import useSWR from 'swr';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from "react";
+import useSWR from "swr";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -10,26 +10,38 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
-import { Edit2, Trash2 } from 'lucide-react';
+} from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Edit2, Trash2, User } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
+} from "@/components/ui/alert-dialog";
+import { showToast } from "@/lib/toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { SpinnerCustom } from "../ui/spinner";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 interface User {
   $id: string;
-  email: string;
   name: string;
-  role?: string;
+  age?: string;
   phone?: string;
-  createdAt: string;
+  image?: string;
+  $createdAt: string;
 }
 
 interface UsersTableProps {
@@ -44,9 +56,8 @@ export function UsersTable({
   refreshTrigger,
 }: UsersTableProps) {
   const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
-
-  const limit = 10;
+  const [search, setSearch] = useState("");
+  const [limit, setLimit] = useState(5);
 
   const queryParams = new URLSearchParams({
     page: page.toString(),
@@ -60,17 +71,38 @@ export function UsersTable({
     { revalidateOnFocus: false }
   );
 
-  // Refresh when trigger changes
-  useState(() => {
+  useEffect(() => {
     mutate();
   }, [refreshTrigger, mutate]);
 
-  const handleDelete = async (id: string) => {
+  useEffect(() => {
+    if (error) {
+      showToast.error("Failed to load users", "Please refresh the page");
+    }
+  }, [error]);
+
+  const handleDelete = async (user: User) => {
     try {
-      await fetch(`/api/users/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/users/${user.$id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete user");
+      }
+
+      showToast.success(
+        "User Deleted",
+        `${user.name} has been removed from the system`
+      );
+
       mutate();
     } catch (error) {
-      console.error('Error deleting user:', error);
+      console.error("Error deleting user:", error);
+      showToast.error(
+        "Delete Failed",
+        "Unable to delete user. Please try again."
+      );
     }
   };
 
@@ -98,11 +130,11 @@ export function UsersTable({
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="hidden md:table-cell">User</TableHead>
             <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
+            <TableHead>Age</TableHead>
             <TableHead>Phone</TableHead>
-            <TableHead>Created</TableHead>
+            <TableHead className="hidden md:table-cell">Created</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -110,7 +142,7 @@ export function UsersTable({
           {isLoading ? (
             <TableRow>
               <TableCell colSpan={6} className="text-center py-8">
-                Loading...
+                <SpinnerCustom className="text-primary" />
               </TableCell>
             </TableRow>
           ) : users.length === 0 ? (
@@ -122,12 +154,19 @@ export function UsersTable({
           ) : (
             users.map((user: User) => (
               <TableRow key={user.$id}>
+                <TableCell className="hidden md:table-cell">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={user?.image} className="object-cover" />
+                    <AvatarFallback>
+                      <User />
+                    </AvatarFallback>
+                  </Avatar>
+                </TableCell>
                 <TableCell className="font-medium">{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.role || '-'}</TableCell>
-                <TableCell>{user.phone || '-'}</TableCell>
-                <TableCell>
-                  {new Date(user.createdAt).toLocaleDateString()}
+                <TableCell>{user.age}</TableCell>
+                <TableCell>{user.phone || "-"}</TableCell>
+                <TableCell className="hidden md:table-cell">
+                  {new Date(user.$createdAt).toLocaleDateString()}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex gap-2 justify-end">
@@ -135,6 +174,7 @@ export function UsersTable({
                       size="sm"
                       variant="outline"
                       onClick={() => onEdit(user)}
+                      title="Edit user"
                     >
                       <Edit2 className="w-4 h-4" />
                     </Button>
@@ -143,24 +183,28 @@ export function UsersTable({
                         <Button
                           size="sm"
                           variant="destructive"
+                          title="Delete user"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
-                        <AlertDialogTitle>Delete User</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Are you sure you want to delete {user.name}? This action cannot be undone.
-                        </AlertDialogDescription>
-                        <div className="flex gap-2 justify-end">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete User</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete {user.name}? This
+                            action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => handleDelete(user.$id)}
-                            className="bg-destructive"
+                            onClick={() => handleDelete(user)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
                             Delete
                           </AlertDialogAction>
-                        </div>
+                        </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
                   </div>
@@ -171,11 +215,32 @@ export function UsersTable({
         </TableBody>
       </Table>
 
-      <div className="flex gap-2 justify-between items-center">
+      <div className="flex gap-2 justify-between items-center py-2">
         <div className="text-sm text-muted-foreground">
           Page {page} of {totalPages} ({total} total)
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex gap-2 items-center">
+          <span className="text-sm">Rows per page:</span>
+          <Select
+            value={limit.toString()}
+            onValueChange={(value) => {
+              setPage(1);
+              setLimit(Number(value));
+            }}
+          >
+            <SelectTrigger className="w-20">
+              <SelectValue placeholder={limit.toString()} />
+            </SelectTrigger>
+            <SelectContent>
+              {[5, 10, 20, 50].map((num) => (
+                <SelectItem key={num} value={num.toString()}>
+                  {num}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Button
             variant="outline"
             onClick={() => setPage((p) => Math.max(1, p - 1))}

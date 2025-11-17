@@ -1,38 +1,48 @@
 "use client";
 
 import { useState } from "react";
-import { DoctorsTable } from "@/components/doctors/doctors-table";
-import { DoctorForm } from "@/components/doctors/doctor-form";
 import { showToast } from "@/lib/toast";
+import { AvailabilityTable } from "@/components/time-slots/time-slots-table";
+import { AvailabilityForm } from "@/components/time-slots/time-slot-edit-form";
 
 interface Doctor {
   $id: string;
   name: string;
   specialty: string;
-  hourlyRate: number;
   image?: string;
-  experience?: string;
-  specialties?: any[];
 }
 
-export default function DoctorsPage() {
+interface TimeSlot {
+  $id: string;
+  doctorId: string;
+  availableDays: string[];
+  availableTimes: string[];
+  doctor?: Doctor;
+}
+
+export default function AvailabilityPage() {
   const [formOpen, setFormOpen] = useState(false);
-  const [selectedDoctor, setSelectedDoctor] = useState<any>();
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<
+    TimeSlot | undefined
+  >();
+  const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const handleEdit = (doctor: Doctor) => {
-    setSelectedDoctor(doctor);
+  const handleEdit = (timeSlot: TimeSlot) => {
+    setSelectedTimeSlot(timeSlot);
+    setSelectedDoctorId("");
     setFormOpen(true);
   };
 
-  const handleAddNew = () => {
-    setSelectedDoctor(undefined);
+  const handleAddNew = (doctorId: string) => {
+    setSelectedDoctorId(doctorId);
+    setSelectedTimeSlot(undefined);
     setFormOpen(true);
   };
 
   const handleFormSubmit = async (data: any, id?: string) => {
     const isEdit = !!id;
-    const url = id ? `/api/doctors/${id}` : "/api/doctors";
+    const url = id ? `/api/time-slots/${id}` : "/api/time-slots";
     const method = id ? "PUT" : "POST";
 
     try {
@@ -44,18 +54,20 @@ export default function DoctorsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save doctor");
+        throw new Error(errorData.error || "Failed to save availability");
       }
 
       showToast.success(
-        isEdit ? "Doctor Updated" : "Doctor Created",
+        isEdit ? "Availability Updated" : "Availability Created",
         isEdit
-          ? `${data.name} has been updated successfully`
-          : `${data.name} has been added to the system`
+          ? "Doctor availability has been updated successfully"
+          : "Doctor availability has been added to the system"
       );
 
       setRefreshTrigger((prev) => prev + 1);
       setFormOpen(false);
+      setSelectedTimeSlot(undefined);
+      setSelectedDoctorId("");
     } catch (error) {
       console.error("Error:", error);
       showToast.error(
@@ -69,21 +81,22 @@ export default function DoctorsPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-primary">Doctors</h1>
+        <h1 className="text-3xl font-bold text-primary">Doctor Availability</h1>
         <p className="text-muted-foreground mt-1">
-          Manage doctors and their specialties
+          Manage doctor availability schedules and time slots
         </p>
       </div>
 
-      <DoctorsTable
+      <AvailabilityTable
         onEdit={handleEdit}
         onAddNew={handleAddNew}
         refreshTrigger={refreshTrigger}
       />
 
-      <DoctorForm
+      <AvailabilityForm
         open={formOpen}
-        doctor={selectedDoctor}
+        timeSlot={selectedTimeSlot}
+        doctorId={selectedDoctorId}
         onOpenChange={setFormOpen}
         onSubmit={handleFormSubmit}
       />

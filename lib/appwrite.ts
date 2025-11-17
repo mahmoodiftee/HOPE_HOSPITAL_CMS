@@ -1,11 +1,10 @@
-import { Client, Databases, Users, Storage } from 'appwrite';
+import { Client, Databases, Storage } from 'appwrite';
 
 const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
   .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
 
 export const databases = new Databases(client);
-export const users = new Users(client);
 export const storage = new Storage(client);
 
 // Database IDs (set these in your Appwrite console)
