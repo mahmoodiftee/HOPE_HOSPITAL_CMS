@@ -1,16 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createTimeSlot, getTimeSlots } from "@/lib/appwrite-queries";
+import { createTimeSlot, getTimeSlotsWithDoctors } from "@/lib/appwrite-queries";
 
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
-    const doctorId = searchParams.get("doctorId") || undefined;
 
     const offset = (page - 1) * limit;
 
-    const result = await getTimeSlots(limit, offset, doctorId);
+    const result = await getTimeSlotsWithDoctors(limit, offset);
 
     return NextResponse.json(result);
   } catch (error) {
@@ -26,41 +25,33 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const { doctorId, availableDays, availableTimes } = body;
+    const { docId, day, time } = body;
 
-    if (!doctorId) {
+    if (!docId) {
       return NextResponse.json(
         { error: "Doctor ID is required" },
         { status: 400 }
       );
     }
 
-    if (
-      !availableDays ||
-      !Array.isArray(availableDays) ||
-      availableDays.length === 0
-    ) {
+    if (!day) {
       return NextResponse.json(
-        { error: "Available days are required" },
+        { error: "Day is required" },
         { status: 400 }
       );
     }
 
-    if (
-      !availableTimes ||
-      !Array.isArray(availableTimes) ||
-      availableTimes.length === 0
-    ) {
+    if (!time || !Array.isArray(time) || time.length === 0) {
       return NextResponse.json(
-        { error: "Available times are required" },
+        { error: "Time slots are required" },
         { status: 400 }
       );
     }
 
     const timeSlot = await createTimeSlot({
-      doctorId,
-      availableDays,
-      availableTimes,
+      docId,
+      day,
+      time,
     });
 
     return NextResponse.json(timeSlot, { status: 201 });

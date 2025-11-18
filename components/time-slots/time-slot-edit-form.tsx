@@ -59,13 +59,9 @@ const TIME_SLOTS = [
 ];
 
 const availabilitySchema = z.object({
-  doctorId: z.string().min(1, "Doctor is required"),
-  availableDays: z
-    .array(z.string())
-    .min(1, "At least one day must be selected"),
-  availableTimes: z
-    .array(z.string())
-    .min(1, "At least one time slot must be selected"),
+  docId: z.string().min(1, "Doctor is required"),
+  day: z.string().min(1, "Day is required"),
+  time: z.array(z.string()).min(1, "At least one time slot must be selected"),
 });
 
 type AvailabilityFormData = z.infer<typeof availabilitySchema>;
@@ -79,9 +75,9 @@ interface Doctor {
 
 interface TimeSlot {
   $id: string;
-  doctorId: string;
-  availableDays: string[];
-  availableTimes: string[];
+  docId: string;
+  day: string;
+  time: string[];
   doctor?: Doctor;
 }
 
@@ -103,53 +99,70 @@ export function AvailabilityForm({
   isLoading = false,
 }: AvailabilityFormProps) {
   const [submitting, setSubmitting] = useState(false);
-  const [selectedDay, setSelectedDay] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [doctor, setDoctor] = useState<Doctor | null>(null);
+  const [occupiedDays, setOccupiedDays] = useState<string[]>([]);
 
   const form = useForm<AvailabilityFormData>({
     resolver: zodResolver(availabilitySchema),
     defaultValues: {
-      doctorId: "",
-      availableDays: [],
-      availableTimes: [],
+      docId: "",
+      day: "",
+      time: [],
     },
   });
 
   useEffect(() => {
     if (timeSlot) {
       form.reset({
-        doctorId: timeSlot.doctorId,
-        availableDays: timeSlot.availableDays || [],
-        availableTimes: timeSlot.availableTimes || [],
+        docId: timeSlot.docId,
+        day: timeSlot.day,
+        time: timeSlot.time || [],
       });
 
       if (timeSlot.doctor) {
         setDoctor(timeSlot.doctor);
       } else {
-        fetch(`/api/doctors/${timeSlot.doctorId}`)
+        fetch(`/api/doctors/${timeSlot.docId}`)
           .then((res) => res.json())
           .then((data) => setDoctor(data))
           .catch((err) => console.error("Error fetching doctor:", err));
       }
+
+      // When editing, we don't need to fetch occupied days
+      setOccupiedDays([]);
     } else if (doctorId) {
       form.reset({
-        doctorId: doctorId,
-        availableDays: [],
-        availableTimes: [],
+        docId: doctorId,
+        day: "",
+        time: [],
       });
 
+      // Fetch doctor info
       fetch(`/api/doctors/${doctorId}`)
         .then((res) => res.json())
         .then((data) => setDoctor(data))
         .catch((err) => console.error("Error fetching doctor:", err));
+
+      // Fetch existing time slots for this doctor to get occupied days
+      fetch(`/api/time-slots?doctorId=${doctorId}&limit=1000`)
+        .then((res) => res.json())
+        .then((data) => {
+          const days = data.documents?.map((slot: any) => slot.day) || [];
+          setOccupiedDays(days);
+        })
+        .catch((err) => {
+          console.error("Error fetching doctor time slots:", err);
+          setOccupiedDays([]);
+        });
     } else {
       form.reset({
-        doctorId: "",
-        availableDays: [],
-        availableTimes: [],
+        docId: "",
+        day: "",
+        time: [],
       });
       setDoctor(null);
+      setOccupiedDays([]);
     }
   }, [timeSlot, doctorId, form]);
 
@@ -159,6 +172,7 @@ export function AvailabilityForm({
       await onSubmit(data, timeSlot?.$id);
       form.reset();
       setDoctor(null);
+      setOccupiedDays([]);
     } catch (error) {
       console.error("Form submission error:", error);
     } finally {
@@ -166,46 +180,24 @@ export function AvailabilityForm({
     }
   };
 
-  const addDay = () => {
-    if (selectedDay) {
-      const current = form.getValues("availableDays") || [];
-
-      if (current.includes(selectedDay)) {
-        showToast.warning("Duplicate Day", "This day has already been added");
-        return;
-      }
-
-      form.setValue("availableDays", [...current, selectedDay]);
-      setSelectedDay("");
-    }
-  };
-
-  const removeDay = (index: number) => {
-    const current = form.getValues("availableDays") || [];
-    form.setValue(
-      "availableDays",
-      current.filter((_, i) => i !== index)
-    );
-  };
-
   const addTime = () => {
     if (selectedTime) {
-      const current = form.getValues("availableTimes") || [];
+      const current = form.getValues("time") || [];
 
       if (current.includes(selectedTime)) {
         showToast.warning("Duplicate Time", "This time has already been added");
         return;
       }
 
-      form.setValue("availableTimes", [...current, selectedTime]);
+      form.setValue("time", [...current, selectedTime]);
       setSelectedTime("");
     }
   };
 
   const removeTime = (index: number) => {
-    const current = form.getValues("availableTimes") || [];
+    const current = form.getValues("time") || [];
     form.setValue(
-      "availableTimes",
+      "time",
       current.filter((_, i) => i !== index)
     );
   };
@@ -216,13 +208,20 @@ export function AvailabilityForm({
     }
   };
 
-  const availableDaysForSelection = DAYS_OF_WEEK.filter(
-    (day) => !form.watch("availableDays")?.includes(day)
+  const availableTimesForSelection = TIME_SLOTS.filter(
+    (time) => !form.watch("time")?.includes(time)
   );
 
-  const availableTimesForSelection = TIME_SLOTS.filter(
-    (time) => !form.watch("availableTimes")?.includes(time)
-  );
+  // Filter available days - when editing, show current day + unoccupied days
+  // When adding new, only show unoccupied days
+  const availableDays = DAYS_OF_WEEK.filter((day) => {
+    if (timeSlot) {
+      // When editing, allow the current day or unoccupied days
+      return day === timeSlot.day || !occupiedDays.includes(day);
+    }
+    // When adding new, only show unoccupied days
+    return !occupiedDays.includes(day);
+  });
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -260,55 +259,34 @@ export function AvailabilityForm({
           >
             <FormField
               control={form.control}
-              name="availableDays"
-              render={() => (
+              name="day"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Available Days</FormLabel>
-                  <div className="flex gap-2">
-                    <Select value={selectedDay} onValueChange={setSelectedDay}>
-                      <SelectTrigger className="flex-1">
+                  <FormLabel>Day</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    disabled={!!timeSlot}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
                         <SelectValue placeholder="Select a day" />
                       </SelectTrigger>
-                      <SelectContent>
-                        {availableDaysForSelection.map((day) => (
+                    </FormControl>
+                    <SelectContent>
+                      {availableDays.length === 0 ? (
+                        <div className="p-3 text-sm text-muted-foreground text-center">
+                          All days already have time slots
+                        </div>
+                      ) : (
+                        availableDays.map((day) => (
                           <SelectItem key={day} value={day}>
                             {day}
                           </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={addDay}
-                      disabled={!selectedDay}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {form.watch("availableDays") &&
-                    form.watch("availableDays")!.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {form.watch("availableDays")!.map((day, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="gap-1"
-                          >
-                            {day}
-                            <button
-                              type="button"
-                              onClick={() => removeDay(index)}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -316,7 +294,7 @@ export function AvailabilityForm({
 
             <FormField
               control={form.control}
-              name="availableTimes"
+              name="time"
               render={() => (
                 <FormItem>
                   <FormLabel>Available Times</FormLabel>
@@ -347,27 +325,26 @@ export function AvailabilityForm({
                     </Button>
                   </div>
 
-                  {form.watch("availableTimes") &&
-                    form.watch("availableTimes")!.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {form.watch("availableTimes")!.map((time, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="gap-1"
+                  {form.watch("time") && form.watch("time")!.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {form.watch("time")!.map((time, index) => (
+                        <Badge
+                          key={index}
+                          variant="secondary"
+                          className="gap-1"
+                        >
+                          {time}
+                          <button
+                            type="button"
+                            onClick={() => removeTime(index)}
+                            className="ml-1 hover:text-destructive"
                           >
-                            {time}
-                            <button
-                              type="button"
-                              onClick={() => removeTime(index)}
-                              className="ml-1 hover:text-destructive"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}

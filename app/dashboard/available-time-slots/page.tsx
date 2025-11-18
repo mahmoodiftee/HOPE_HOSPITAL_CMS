@@ -14,9 +14,9 @@ interface Doctor {
 
 interface TimeSlot {
   $id: string;
-  doctorId: string;
-  availableDays: string[];
-  availableTimes: string[];
+  docId: string;
+  day: string;
+  time: string[];
   doctor?: Doctor;
 }
 
@@ -54,14 +54,14 @@ export default function AvailabilityPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to save availability");
+        throw new Error(errorData.error || "Failed to save Time Slots");
       }
 
       showToast.success(
-        isEdit ? "Availability Updated" : "Availability Created",
+        isEdit ? "Time Slots Updated" : "Time Slots Created",
         isEdit
-          ? "Doctor availability has been updated successfully"
-          : "Doctor availability has been added to the system"
+          ? "Doctor Time Slots has been updated successfully"
+          : "Doctor Time Slots has been added to the system"
       );
 
       setRefreshTrigger((prev) => prev + 1);
@@ -81,7 +81,7 @@ export default function AvailabilityPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-primary">Doctor Availability</h1>
+        <h1 className="text-3xl font-bold text-primary">Doctor Time Slots</h1>
         <p className="text-muted-foreground mt-1">
           Manage doctor availability schedules and time slots
         </p>

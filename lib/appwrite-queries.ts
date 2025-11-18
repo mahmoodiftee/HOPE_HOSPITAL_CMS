@@ -5,14 +5,15 @@ import {
   TIME_SLOTS_COLLECTION_ID,
   USERS_COLLECTION_ID,
   ID,
+  TIME_SLOTS_ID,
 } from "./appwrite";
 import { Query } from "appwrite";
 import type { Models } from "appwrite";
 
 interface TimeSlot extends Models.Document {
-  doctorId: string;
-  availableDays?: string[];
-  availableTimes?: string[];
+  docId: string;
+  day?: string;
+  time?: string[];
 }
 
 interface Doctor extends Models.Document {
@@ -165,12 +166,12 @@ export async function createTimeSlot(
   try {
     const response = await databases.createDocument(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       ID.unique(),
       {
-        ...data,
-        availableDays: data.availableDays || [],
-        availableTimes: data.availableTimes || [],
+        docId: data.docId,
+        day: data.day,
+        time: data.time || [],
       }
     );
     return response;
@@ -180,31 +181,76 @@ export async function createTimeSlot(
   }
 }
 
-export async function getTimeSlots(limit = 10, offset = 0, doctorId?: string) {
+export async function getTimeSlotsWithDoctors(limit = 10, offset = 0) {
   try {
-    const queries = [];
-
-    if (doctorId) {
-      queries.push(Query.equal("doctorId", doctorId));
-    }
-
-    const response = await databases.listDocuments(
+    const timeSlotsResponse = await databases.listDocuments(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       [
-        ...queries,
-        Query.limit(limit),
-        Query.offset(offset),
+        Query.limit(1000),
         Query.orderDesc("$createdAt"),
       ]
     );
 
+    const groupedByDoctor = timeSlotsResponse.documents.reduce((acc: any, slot: any) => {
+      const docId = slot.docId;
+      if (!acc[docId]) {
+        acc[docId] = [];
+      }
+      acc[docId].push({
+        $id: slot.$id,
+        day: slot.day,
+        time: slot.time || [],
+        $createdAt: slot.$createdAt,
+      });
+      return acc;
+    }, {});
+
+    const doctorIds = Object.keys(groupedByDoctor);
+
+    const doctorPromises = doctorIds.map(async (docId) => {
+      try {
+        const doctor = await databases.getDocument(
+          DATABASE_ID,
+          DOCTORS_COLLECTION_ID,
+          docId
+        );
+        return {
+          $id: doctor.$id,
+          name: doctor.name,
+          specialty: doctor.specialty,
+          image: doctor.image,
+        };
+      } catch (error) {
+        console.error(`Error fetching doctor ${docId}:`, error);
+        return null;
+      }
+    });
+
+    const doctors = (await Promise.all(doctorPromises)).filter(Boolean);
+
+    const mergedData = doctors.map((doctor: any) => {
+      return {
+        doctorId: doctor.$id,
+        doctor: {
+          $id: doctor.$id,
+          name: doctor.name,
+          specialty: doctor.specialty,
+          image: doctor.image,
+        },
+        timeSlots: groupedByDoctor[doctor.$id] || [],
+      };
+    });
+
+    const total = mergedData.length;
+    const paginatedData = mergedData.slice(offset, offset + limit);
+
     return {
-      documents: response.documents,
-      total: response.total,
+      documents: paginatedData,
+      total: total,
     };
   } catch (error) {
-    console.error("Error fetching time slots:", error);
+    console.error("Error fetching time slots with doctors:", error);
     throw error;
   }
 }
@@ -213,7 +259,7 @@ export async function getTimeSlot(timeSlotId: string) {
   try {
     const response = await databases.getDocument(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       timeSlotId
     );
     return response;
@@ -228,15 +274,17 @@ export async function updateTimeSlot(
   data: Partial<Omit<TimeSlot, keyof Models.Document>>
 ) {
   try {
+    const updateData: any = {};
+
+    if (data.docId) updateData.docId = data.docId;
+    if (data.day) updateData.day = data.day;
+    if (data.time) updateData.time = data.time;
+
     const response = await databases.updateDocument(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       timeSlotId,
-      {
-        ...data,
-        ...(data.availableDays && { availableDays: data.availableDays }),
-        ...(data.availableTimes && { availableTimes: data.availableTimes }),
-      }
+      updateData
     );
     return response;
   } catch (error) {
@@ -249,7 +297,7 @@ export async function deleteTimeSlot(timeSlotId: string) {
   try {
     await databases.deleteDocument(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       timeSlotId
     );
   } catch (error) {
@@ -258,31 +306,61 @@ export async function deleteTimeSlot(timeSlotId: string) {
   }
 }
 
-export async function getDoctorsWithoutTimeSlots() {
+export async function getDoctorsAvailableForNewSlots() {
   try {
+    console.log("Fetching all doctors...");
     const doctorsResponse = await databases.listDocuments(
       DATABASE_ID,
       DOCTORS_COLLECTION_ID,
       [Query.limit(1000)]
     );
+    console.log(`Found ${doctorsResponse.documents.length} doctors`);
 
+    console.log("Fetching all timeslots...");
     const timeSlotsResponse = await databases.listDocuments(
       DATABASE_ID,
-      TIME_SLOTS_COLLECTION_ID,
+      TIME_SLOTS_ID,
       [Query.limit(1000)]
     );
+    console.log(`Found ${timeSlotsResponse.documents.length} timeslots`);
 
-    const doctorIdsWithSlots = new Set(
-      timeSlotsResponse.documents.map((slot) => slot.doctorId)
-    );
+    const DAYS_OF_WEEK = [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ];
 
-    const doctorsWithoutSlots = doctorsResponse.documents.filter(
-      (doctor) => !doctorIdsWithSlots.has(doctor.$id)
-    );
+    const doctorDays = new Map<string, Set<string>>();
 
-    return doctorsWithoutSlots;
+    timeSlotsResponse.documents.forEach((slot: any) => {
+      const docId = typeof slot.docId === 'string' ? slot.docId : slot.docId?.$id;
+      if (docId) {
+        if (!doctorDays.has(docId)) {
+          doctorDays.set(docId, new Set());
+        }
+        doctorDays.get(docId)!.add(slot.day);
+      }
+    });
+
+    const doctorsAvailable = doctorsResponse.documents.filter((doctor) => {
+      const coveredDays = doctorDays.get(doctor.$id);
+
+      if (!coveredDays) {
+        return true;
+      }
+
+      return coveredDays.size < DAYS_OF_WEEK.length;
+    });
+
+    console.log(`Doctors available for new slots: ${doctorsAvailable.length}`);
+
+    return doctorsAvailable;
   } catch (error) {
-    console.error("Error fetching doctors without time slots:", error);
+    console.error("Error fetching doctors available for new slots:", error);
     throw error;
   }
 }

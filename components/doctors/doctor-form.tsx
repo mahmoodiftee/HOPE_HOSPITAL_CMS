@@ -248,12 +248,17 @@ export function DoctorForm({
                 form.watch("specialties")!.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {form.watch("specialties")!.map((spec, index) => (
-                      <Badge key={index} variant="secondary" className="gap-1">
-                        {spec}
+                      <Badge
+                        key={index}
+                        variant="secondary"
+                        className="gap-1 max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap"
+                        title={spec}
+                      >
+                        <span className="truncate">{spec}</span>
                         <button
                           type="button"
                           onClick={() => removeSpecialty(index)}
-                          className="ml-1 hover:text-destructive"
+                          className="ml-1 hover:text-destructive shrink-0"
                         >
                           <X className="w-3 h-3" />
                         </button>

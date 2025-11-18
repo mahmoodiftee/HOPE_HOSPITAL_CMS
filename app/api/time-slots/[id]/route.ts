@@ -30,18 +30,8 @@ export async function PUT(
     const { id } = await params;
     const body = await request.json();
 
-    const { availableDays, availableTimes } = body;
-
-    if (
-      availableDays &&
-      (!Array.isArray(availableDays) || availableDays.length === 0)
-    ) {
-      return NextResponse.json(
-        { error: "Available days must be a non-empty array" },
-        { status: 400 }
-      );
-    }
-
+    const { availableTimes } = body;
+    
     if (
       availableTimes &&
       (!Array.isArray(availableTimes) || availableTimes.length === 0)
@@ -80,8 +70,3 @@ export async function DELETE(
     );
   }
 }
-
-// { params }: { params: Promise<{ id: string }> }
-// ) {
-//   try {
-//     const { id } = await params;

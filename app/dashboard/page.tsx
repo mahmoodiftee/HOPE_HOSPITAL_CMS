@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Users, Clock, User, TrendingUp } from 'lucide-react';
+import GenerateTimeslotsButton from '@/components/generate';
 
 interface Stats {
   totalDoctors: number;
@@ -89,7 +90,6 @@ export default function DashboardPage() {
           );
         })}
       </div>
-
       {/* Quick Actions */}
       <div>
         <h2 className="text-xl font-semibold text-foreground mb-4">
