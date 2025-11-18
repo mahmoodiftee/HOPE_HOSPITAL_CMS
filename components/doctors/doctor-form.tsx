@@ -25,6 +25,7 @@ import {
 import { Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { showToast } from "@/lib/toast";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 const doctorSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -211,9 +212,13 @@ export function DoctorForm({
               name="image"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Image URL</FormLabel>
+                  <FormLabel>Profile Image</FormLabel>
                   <FormControl>
-                    <Input placeholder="https://..." {...field} />
+                    <ImageUpload
+                      value={field.value}
+                      onChange={field.onChange}
+                      onClear={() => field.onChange("")}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

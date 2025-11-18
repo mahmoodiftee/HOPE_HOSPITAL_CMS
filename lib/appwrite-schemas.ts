@@ -1,6 +1,3 @@
-// Database schemas documentation
-// Run this to create collections in Appwrite Console
-
 export const DOCTORS_SCHEMA = {
   collectionId: 'doctors',
   attributes: [

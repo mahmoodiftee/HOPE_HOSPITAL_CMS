@@ -1,8 +1,9 @@
 import {
+  storage,
   databases,
   DATABASE_ID,
   DOCTORS_COLLECTION_ID,
-  TIME_SLOTS_COLLECTION_ID,
+  STORAGE_BUCKET_ID,
   USERS_COLLECTION_ID,
   ID,
   TIME_SLOTS_ID,
@@ -449,6 +450,48 @@ export async function deleteUser(userId: string) {
   } catch (error) {
     console.error("Error deleting user:", error);
     throw error;
+  }
+}
+
+// ============ STORAGE QUERIES ============
+
+export async function uploadImage(file: File): Promise<string> {
+  try {
+    const response = await storage.createFile(
+      STORAGE_BUCKET_ID,
+      ID.unique(),
+      file
+    );
+
+    // Get the file view URL
+    const fileUrl = storage.getFileView(STORAGE_BUCKET_ID, response.$id);
+    return fileUrl.toString();
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    throw error;
+  }
+}
+
+export async function deleteImage(fileId: string): Promise<void> {
+  try {
+    await storage.deleteFile(STORAGE_BUCKET_ID, fileId);
+  } catch (error) {
+    console.error("Error deleting image:", error);
+    throw error;
+  }
+}
+
+export function getFileIdFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    const filesIndex = pathParts.indexOf('files');
+    if (filesIndex !== -1 && pathParts[filesIndex + 1]) {
+      return pathParts[filesIndex + 1];
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 
